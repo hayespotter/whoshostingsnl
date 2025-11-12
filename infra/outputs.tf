@@ -28,11 +28,6 @@ output "cloudfront_distribution_url" {
   value       = "https://${aws_cloudfront_distribution.website.domain_name}"
 }
 
-output "origin_access_identity_iam_arn" {
-  description = "IAM ARN of the CloudFront Origin Access Identity"
-  value       = aws_cloudfront_origin_access_identity.website.iam_arn
-}
-
 output "cloudfront_distribution_aliases" {
   description = "CloudFront distribution aliases (custom domain names)"
   value       = aws_cloudfront_distribution.website.aliases

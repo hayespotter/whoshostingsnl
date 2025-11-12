@@ -37,20 +37,24 @@ resource "aws_s3_bucket_public_access_block" "website" {
   restrict_public_buckets = true
 }
 
-# CloudFront Origin Access Identity
-resource "aws_cloudfront_origin_access_identity" "website" {
-  comment = "OAI for ${var.s3_name}"
+# CloudFront Origin Access Control
+resource "aws_cloudfront_origin_access_control" "website" {
+  name                              = "OAC for ${var.s3_name}"
+  description                       = "OAC for ${var.s3_name}"
+  origin_access_control_origin_type = "s3"
+  signing_behavior                  = "always"
+  signing_protocol                  = "sigv4"
 }
 
-# S3 Bucket Policy - allow CloudFront OAI access
+# S3 Bucket Policy - allow CloudFront OAC access
 data "aws_iam_policy_document" "s3_policy" {
   statement {
     sid    = "AllowCloudFrontServicePrincipal"
     effect = "Allow"
 
     principals {
-      type        = "AWS"
-      identifiers = [aws_cloudfront_origin_access_identity.website.iam_arn]
+      type        = "Service"
+      identifiers = ["cloudfront.amazonaws.com"]
     }
 
     actions = [
@@ -60,6 +64,12 @@ data "aws_iam_policy_document" "s3_policy" {
     resources = [
       "${aws_s3_bucket.website.arn}/*"
     ]
+
+    condition {
+      test     = "StringEquals"
+      variable = "AWS:SourceArn"
+      values   = [aws_cloudfront_distribution.website.arn]
+    }
   }
 
   statement {
@@ -67,8 +77,8 @@ data "aws_iam_policy_document" "s3_policy" {
     effect = "Allow"
 
     principals {
-      type        = "AWS"
-      identifiers = [aws_cloudfront_origin_access_identity.website.iam_arn]
+      type        = "Service"
+      identifiers = ["cloudfront.amazonaws.com"]
     }
 
     actions = [
@@ -78,6 +88,12 @@ data "aws_iam_policy_document" "s3_policy" {
     resources = [
       aws_s3_bucket.website.arn
     ]
+
+    condition {
+      test     = "StringEquals"
+      variable = "AWS:SourceArn"
+      values   = [aws_cloudfront_distribution.website.arn]
+    }
   }
 }
 
