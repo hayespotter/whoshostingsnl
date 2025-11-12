@@ -3,7 +3,7 @@ name: OpenTofu Plan on PR
 on:
   pull_request:
     branches:
-      - master
+      - infra
 
 permissions:
   id-token: write
