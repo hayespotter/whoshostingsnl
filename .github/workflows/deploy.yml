@@ -1,0 +1,68 @@
+name: Deploy Website to S3
+
+on:
+  push:
+    branches:
+      - master
+    paths:
+      - 'htdocs/**'
+  workflow_dispatch:
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  deploy:
+    name: Deploy to S3 and Invalidate CloudFront
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - name: Configure AWS Credentials via OIDC
+        uses: aws-actions/configure-aws-credentials@ececac1a45f3b08a01d2dd070d28d111c5fe6722 # v4.1.0
+        with:
+          role-to-assume: ${{ secrets.WRITE_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION }}
+
+      - name: Install OpenTofu
+        uses: opentofu/setup-opentofu@592200bd4b9bbf4772ace78f887668b1aee8f716 # v1.0.5
+        with:
+          tofu_version: latest
+
+      - name: Get Terraform Outputs
+        id: terraform-outputs
+        working-directory: infra
+        run: |
+          tofu init -backend=false
+          S3_BUCKET=$(tofu output -raw s3_bucket_name)
+          CLOUDFRONT_ID=$(tofu output -raw cloudfront_distribution_id)
+          echo "s3_bucket=$S3_BUCKET" >> $GITHUB_OUTPUT
+          echo "cloudfront_id=$CLOUDFRONT_ID" >> $GITHUB_OUTPUT
+
+      - name: Deploy to S3
+        run: |
+          aws s3 sync htdocs/ s3://${{ steps.terraform-outputs.outputs.s3_bucket }}/ \
+            --delete \
+            --cache-control "public, max-age=31536000, immutable" \
+            --exclude "*.html" \
+            --exclude "*.xml" \
+            --exclude "*.txt"
+          aws s3 sync htdocs/ s3://${{ steps.terraform-outputs.outputs.s3_bucket }}/ \
+            --delete \
+            --cache-control "public, max-age=0, must-revalidate" \
+            --include "*.html" \
+            --include "*.xml" \
+            --include "*.txt"
+
+      - name: Invalidate CloudFront Distribution
+        run: |
+          INVALIDATION_ID=$(aws cloudfront create-invalidation \
+            --distribution-id ${{ steps.terraform-outputs.outputs.cloudfront_id }} \
+            --paths "/*" \
+            --query 'Invalidation.Id' \
+            --output text)
+          echo "Created CloudFront invalidation: $INVALIDATION_ID"
+
