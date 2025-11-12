@@ -1,3 +1,4 @@
-# whoshostingsnl
+# whoshostingsnl.com
 
-Simple AMP based website to display who is hosting SNL next.
+
+Simple static site to provide who the next host of Saturday Night Live is at a glance.
